@@ -1,0 +1,56 @@
+# ===============================================
+# Python & FastAPI Backend .gitignore
+# ===============================================
+
+# 1. Virtual Environments (CRITICAL: Never push these)
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# 2. Environment Variables & Secrets (CRITICAL)
+.env
+.env.*
+!.env.example
+
+# 3. Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.cache/
+.pytest_cache/
+
+# 4. IDEs & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 5. OS Generated Files
+.DS_Store
+.DS_Store?
+Thumbs.db
+ehthumbs.db
+
+# 6. Database & Local Storage (If using SQLite locally)
+*.db
+*.sqlite
+*.sqlite3
+
+# 7. Logs & Debugging
+*.log
+logs/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# 8. Type Checking & Testing Coverage
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover

@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+/* src/index.css */
+
+/* Modern, ultra-thin dark scrollbar for textareas and chat logs */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #27272a; /* zinc-800 */
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46; /* zinc-700 */
+}
+
+/* Kills the ugly up/down Windows retro arrows permanently */
+::-webkit-scrollbar-button {
+  display: none;
+}
