@@ -23,7 +23,7 @@ def extract_text_from_bytes(file_bytes: bytes, filename: str) -> str:
             
             extracted_pages = []
             for page_num, page in enumerate(reader.pages):
-                text = page.extract_text()
+                text = page.extract_text(extraction_mode="layout")
                 if text:
                     extracted_pages.append(f"--- Page {page_num + 1} ---\n{text}")
                     

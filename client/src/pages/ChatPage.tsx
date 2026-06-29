@@ -87,7 +87,7 @@ export const ChatPage: React.FC = () => {
     try {
       let currentChatId = activeSessionId;
 
-      // 1. If brand new chat, generate the room first
+      // 1. If brand new chat, generate the parent room first
       if (!currentChatId) {
         const fallbackTitle = attachedFile ? attachedFile.name : currentPrompt.slice(0, 30);
         const newSession = await startNewSession(fallbackTitle);
@@ -98,10 +98,10 @@ export const ChatPage: React.FC = () => {
       }
 
       let activeFileId: string | null = null;
+      const userMessageId = "user_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
 
       // 2. THE ATOMIC TRANSACTION PHASE
       if (attachedFile) {
-        // Spawn temporary holding bubble
         const tempUploadMsgId = "temp_upload_" + Date.now();
         setMessages((prev) => [
           ...prev,
@@ -112,16 +112,16 @@ export const ChatPage: React.FC = () => {
           }
         ]);
 
-        // LOCK THE THREAD: Ship binary to Supabase & MongoDB
+        // Ship binary parcel to Supabase & MongoDB
         const vaultData = await uploadFileVault(currentChatId, attachedFile);
         activeFileId = vaultData.file_id;
 
-        // Upload finished! Swap temporary holding bubble for real user message
+        // Swap temporary holding bubble for real user message
         setMessages((prev) => 
           prev.map((msg) => 
             msg._id === tempUploadMsgId 
               ? { 
-                  _id: Date.now().toString(), 
+                  _id: userMessageId, 
                   role: 'user', 
                   content: currentPrompt || "Attached document for analysis.",
                   attachment: {
@@ -134,18 +134,21 @@ export const ChatPage: React.FC = () => {
         );
       } else {
         // Standard text message
-        setMessages((prev) => [...prev, { _id: Date.now().toString(), role: 'user', content: currentPrompt }]);
+        setMessages((prev) => [
+          ...prev, 
+          { _id: userMessageId, role: 'user', content: currentPrompt }
+        ]);
       }
 
-      // 3. Drop empty AI receiver bubble
-      const aiPlaceholderId = (Date.now() + 1).toString();
-      setMessages((prev) => [...prev, { _id: aiPlaceholderId, role: 'assistant', content: '' }]);
+      // 3. Drop empty AI receiver bubble with a mathematically collision-proof ID
+      const aiReceiverId = "ai_receiver_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+      setMessages((prev) => [...prev, { _id: aiReceiverId, role: 'assistant', content: '' }]);
 
-      // 4. Fire the LLM Stream (passing the newly minted activeFileId!)
+      // 4. Fire the LLM Stream (guaranteed to lock onto aiReceiverId)
       await streamMessage(currentChatId, currentPrompt, (incomingToken) => {
         setMessages((prev) =>
           prev.map((msg) =>
-            msg._id === aiPlaceholderId ? { ...msg, content: msg.content + incomingToken } : msg
+            msg._id === aiReceiverId ? { ...msg, content: msg.content + incomingToken } : msg
           )
         );
       }, activeFileId);
@@ -154,7 +157,7 @@ export const ChatPage: React.FC = () => {
       console.error("Pipeline severed:", error);
       setMessages((prev) => [
         ...prev,
-        { _id: Date.now().toString(), role: 'assistant', content: '⚠️ **Transmission failed.** Could not verify file vault custody.' }
+        { _id: "error_" + Date.now(), role: 'assistant', content: '⚠️ **Transmission failed.** Could not verify network or vault custody.' }
       ]);
     } finally {
       setIsLoading(false);

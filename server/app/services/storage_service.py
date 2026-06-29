@@ -8,7 +8,7 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
-BUCKET_NAME = "Clarix Docs"
+BUCKET_NAME = "clarixdocs"
 
 # Initialize the administrative storage client
 if not SUPABASE_URL or not SUPABASE_KEY:
