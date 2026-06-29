@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from app.routes.chats import router as ChatRouter       # Pulling in our brand new routes
 from app.routes.ai import router as AiRouter          # Pulling in our streaming engine
+# Add your new files router to the import:
+from app.routes.files import router as FileRouter
 from fastapi.middleware.cors import CORSMiddleware
 
 server = FastAPI(
@@ -19,6 +21,7 @@ server.add_middleware(
 
 # Registering the new endpoints
 server.include_router(ChatRouter, tags=["Chat Sessions"], prefix="/api/chats")
+server.include_router(FileRouter, tags=["Vault"], prefix="/api/files")
 server.include_router(AiRouter, tags=["AI Core Engine"], prefix="/api/ai")
 
 @server.get("/")

@@ -12,7 +12,8 @@ import {
   fetchAllSessions, 
   startNewSession, 
   fetchSessionMessages, 
-  streamMessage 
+  streamMessage,
+  uploadFileVault
 } from '../services/api';
 
 // const MOCK_SESSIONS: ChatSession[] = [
@@ -75,9 +76,9 @@ export const ChatPage: React.FC = () => {
   }, []);
 
   // LIVE STREAMING ENGINE:
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent, attachedFile: File | null = null) => {
     e.preventDefault();
-    if (!inputPrompt.trim() || isLoading) return;
+    if ((!inputPrompt.trim() && !attachedFile) || isLoading) return;
 
     const currentPrompt = inputPrompt;
     setInputPrompt('');
@@ -86,49 +87,74 @@ export const ChatPage: React.FC = () => {
     try {
       let currentChatId = activeSessionId;
 
-      // 1. If this is a brand new conversation, create the thread in Atlas first
+      // 1. If brand new chat, generate the room first
       if (!currentChatId) {
-        const newSession = await startNewSession(currentPrompt);
+        const fallbackTitle = attachedFile ? attachedFile.name : currentPrompt.slice(0, 30);
+        const newSession = await startNewSession(fallbackTitle);
         currentChatId = newSession._id;
         setActiveSessionId(currentChatId);
         setSessions((prev) => [newSession, ...prev]);
         setHasStartedChat(true);
-      } else if (!hasStartedChat) {
-        setHasStartedChat(true);
       }
 
-      // 2. Instantly drop the human prompt onto the screen
-      const userMsg: Message = {
-        _id: Date.now().toString(),
-        role: 'user',
-        content: currentPrompt,
-      };
-      setMessages((prev) => [...prev, userMsg]);
+      let activeFileId: string | null = null;
 
-      // 3. Drop an empty placeholder AI bubble that will catch incoming tokens
-      const aiPlaceholderId = (Date.now() + 1).toString();
-      setMessages((prev) => [
-        ...prev,
-        { _id: aiPlaceholderId, role: 'assistant', content: '' }
-      ]);
+      // 2. THE ATOMIC TRANSACTION PHASE
+      if (attachedFile) {
+        // Spawn temporary holding bubble
+        const tempUploadMsgId = "temp_upload_" + Date.now();
+        setMessages((prev) => [
+          ...prev,
+          { 
+            _id: tempUploadMsgId, 
+            role: 'user', 
+            content: `⏳ *Encrypting & shipping ${attachedFile.name} to vault...*` 
+          }
+        ]);
 
-      // 4. Open the HTTP ReadableStream!
-      await streamMessage(currentChatId, currentPrompt, (incomingToken) => {
-        setMessages((prevMessages) =>
-          prevMessages.map((msg) =>
-            msg._id === aiPlaceholderId
-              ? { ...msg, content: msg.content + incomingToken }
+        // LOCK THE THREAD: Ship binary to Supabase & MongoDB
+        const vaultData = await uploadFileVault(currentChatId, attachedFile);
+        activeFileId = vaultData.file_id;
+
+        // Upload finished! Swap temporary holding bubble for real user message
+        setMessages((prev) => 
+          prev.map((msg) => 
+            msg._id === tempUploadMsgId 
+              ? { 
+                  _id: Date.now().toString(), 
+                  role: 'user', 
+                  content: currentPrompt || "Attached document for analysis.",
+                  attachment: {
+                    filename: attachedFile.name,
+                    file_id: activeFileId || undefined
+                  }
+                }
               : msg
           )
         );
-      });
+      } else {
+        // Standard text message
+        setMessages((prev) => [...prev, { _id: Date.now().toString(), role: 'user', content: currentPrompt }]);
+      }
+
+      // 3. Drop empty AI receiver bubble
+      const aiPlaceholderId = (Date.now() + 1).toString();
+      setMessages((prev) => [...prev, { _id: aiPlaceholderId, role: 'assistant', content: '' }]);
+
+      // 4. Fire the LLM Stream (passing the newly minted activeFileId!)
+      await streamMessage(currentChatId, currentPrompt, (incomingToken) => {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg._id === aiPlaceholderId ? { ...msg, content: msg.content + incomingToken } : msg
+          )
+        );
+      }, activeFileId);
 
     } catch (error) {
-      console.error("Transmission failure:", error);
-      // Append an error bubble so the user isn't left staring at a blank screen
+      console.error("Pipeline severed:", error);
       setMessages((prev) => [
         ...prev,
-        { _id: Date.now().toString(), role: 'assistant', content: '⚠️ Connection to Clarix core severed. Is the server running?' }
+        { _id: Date.now().toString(), role: 'assistant', content: '⚠️ **Transmission failed.** Could not verify file vault custody.' }
       ]);
     } finally {
       setIsLoading(false);

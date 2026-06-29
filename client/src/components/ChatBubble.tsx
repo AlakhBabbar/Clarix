@@ -2,13 +2,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Paperclip } from 'lucide-react';
 import type { Message } from '../types/chat';
 
 interface ChatBubbleProps {
   message: Message;
 }
 
-const HEIGHT_LIMIT = 240; // Slightly bumped to accommodate rich HTML spacing
+const HEIGHT_LIMIT = 240;
 
 export const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
   const isUser = message.role === 'user';
@@ -25,12 +26,24 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
 
   return (
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div className={`relative max-w-[85%] md:max-w-[80%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed transition-all ${
+      <div className={`relative max-w-[85%] md:max-w-[80%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed transition-all flex flex-col gap-2 ${
         isUser 
           ? 'bg-zinc-800 text-white rounded-br-xs' 
           : 'bg-transparent border border-zinc-800/80 text-zinc-300 rounded-bl-xs'
       }`}>
         
+        {/* ================= GEOMETRIC ATTACHMENT CHIP ================= */}
+        {message.attachment && (
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs select-none w-fit max-w-full ${
+            isUser 
+              ? 'bg-zinc-900/80 border-white/10 text-zinc-200' 
+              : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+          }`}>
+            <Paperclip className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+            <span className="truncate font-mono tracking-tight">{message.attachment.filename}</span>
+          </div>
+        )}
+
         <div 
           ref={contentRef}
           className={`break-words transition-all duration-300 overflow-hidden ${
@@ -38,10 +51,8 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
           }`}
         >
           {isUser ? (
-            /* 1. Humans write plain text; keep them in high-speed standard divs */
             <div className="whitespace-pre-wrap">{message.content}</div>
           ) : (
-            /* 2. AI writes AST Markdown; compile it live on the fly */
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
@@ -55,8 +66,6 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
                 ol: ({ children }) => <ol className="list-decimal list-inside my-2 space-y-1 text-zinc-300 ml-1">{children}</ol>,
                 li: ({ children }) => <li className="leading-normal">{children}</li>,
                 blockquote: ({ children }) => <blockquote className="border-l-2 border-zinc-700 pl-3 my-2 italic text-zinc-400">{children}</blockquote>,
-                
-                /* THE ELITE CODE HIJACKER */
                 code: ({ className, children, ...props }) => {
                   const isMultiLine = String(children).includes('\n');
                   const lang = className?.replace('language-', '') || 'code';

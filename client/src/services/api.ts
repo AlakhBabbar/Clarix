@@ -33,12 +33,16 @@ export async function fetchSessionMessages(chatId: string): Promise<Message[]> {
 export async function streamMessage(
   chatId: string,
   prompt: string,
-  onTokenReceived: (token: string) => void
+  onTokenReceived: (token: string) => void,
+  fileId?: string | null
 ): Promise<void> {
   const response = await fetch(`${API_BASE}/ai/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, prompt }),
+    body: JSON.stringify({ chat_id: chatId,
+       prompt, 
+       file_id: fileId || null // <-- Passes pointer to Python
+      }),
   });
 
   if (!response.ok || !response.body) {
@@ -57,4 +61,29 @@ export async function streamMessage(
       onTokenReceived(chunk);
     }
   }
+}
+
+export interface VaultResponse {
+  file_id: string;
+  filename: string;
+  file_url: string;
+}
+
+export async function uploadFileVault(chatId: string, file: File): Promise<VaultResponse> {
+  const payload = new FormData();
+  payload.append('file', file);
+  payload.append('chat_id', chatId);
+
+  // NOTICE: No 'Content-Type' header! The browser handles multipart boundaries automatically.
+  const res = await fetch(`${API_BASE}/files/upload`, {
+    method: 'POST',
+    body: payload,
+  });
+
+  if (!res.ok) {
+    throw new Error(`Vault rejected file upload. Status: ${res.status}`);
+  }
+
+  const json = await res.json();
+  return json; // Returns the permanent Supabase CDN link
 }

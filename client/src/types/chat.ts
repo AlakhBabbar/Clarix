@@ -5,6 +5,10 @@ export interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp?: string;
+  attachment?: {
+    filename: string;
+    file_id?: string;
+  };
 }
 
 export interface ChatSession {
