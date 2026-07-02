@@ -74,16 +74,30 @@ export async function uploadFileVault(chatId: string, file: File): Promise<Vault
   payload.append('file', file);
   payload.append('chat_id', chatId);
 
-  // NOTICE: No 'Content-Type' header! The browser handles multipart boundaries automatically.
   const res = await fetch(`${API_BASE}/files/upload`, {
     method: 'POST',
     body: payload,
   });
 
   if (!res.ok) {
-    throw new Error(`Vault rejected file upload. Status: ${res.status}`);
+    // 1. Setup a fallback error message
+    let errorMessage = `Vault rejected file upload. Status: ${res.status}`;
+    
+    try {
+      // 2. Try to parse the JSON error payload from FastAPI
+      const errorData = await res.json();
+      if (errorData.detail) {
+        // 3. If FastAPI sent a 'detail' string (like your file size error), use it!
+        errorMessage = errorData.detail; 
+      }
+    } catch (e) {
+      // If parsing fails, we just stick with the fallback message
+    }
+    
+    // 4. Throw the actual descriptive error
+    throw new Error(errorMessage); 
   }
 
   const json = await res.json();
-  return json; // Returns the permanent Supabase CDN link
+  return json; 
 }

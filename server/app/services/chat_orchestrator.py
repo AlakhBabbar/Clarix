@@ -1,10 +1,8 @@
-import urllib.request
 from bson import ObjectId
 from app.services.ai_core import hf_stream_completion
 from app.services.message_service import create_message, get_messages_by_chat
 from app.services.chat_service import update_chat_timestamp
-from app.database import database # <-- Pulling in your Motor DB instance
-from app.services.pdf_parser import extract_text_from_bytes
+from app.database import database 
 
 async def orchestrate_chat_stream(chat_id: str, user_content: str, file_id: str = None):
     """
@@ -12,63 +10,85 @@ async def orchestrate_chat_stream(chat_id: str, user_content: str, file_id: str 
     Saves the user prompt, injects history into the LLM, streams the response,
     and commits the AI's final answer to MongoDB Atlas.
     """
-    # Step 1: Immediately commit the human's message to MongoDB
-    await create_message(chat_id=chat_id, role="user", content=user_content)
+    attachment_data = None
     
-    # Step 2: Bump the parent chat's 'last_used' timestamp so it jumps to the top of the sidebar
-    await update_chat_timestamp(chat_id=chat_id)
-
-    # 2.a THE BACKPACK HEIST: Intercept document if attached
-    prompt_to_send = user_content
+    # ==========================================
+    # 1. UI CHIP LOGIC (Strictly for this turn)
+    # ==========================================
     if file_id:
         try:
-            file_doc = await database.files.find_one({"_id": ObjectId(file_id)})
-            if file_doc:
-                # Rip binary from Supabase CDN
-                req = urllib.request.Request(file_doc["cdn_url"], headers={'User-Agent': 'Mozilla/5.0'})
-                file_bytes = urllib.request.urlopen(req).read()
-                
-                # Shred it into English text
-                extracted_text = extract_text_from_bytes(file_bytes, file_doc["filename"])
-                
-                # Wrap it in a strict system context prompt
-                prompt_to_send = (
-                    f"Context Document ({file_doc['filename']}):\n"
-                    f"{extracted_text}\n\n"
-                    f"User Question: {user_content}"
-                )
-                print(f"📎 RAG Heist Complete: Injected {len(extracted_text)} chars.")
+            # Find the specific file they just attached to this exact message
+            current_file = await database.files.find_one({"_id": ObjectId(file_id)})
+            if current_file:
+                attachment_data = {
+                    "filename": current_file["filename"],
+                    "file_id": str(current_file["_id"]),
+                    "file_url": current_file.get("cdn_url")
+                }
         except Exception as e:
-            print(f"⚠️ Vault Retrieval Failed: {str(e)}")
-    
-    # Step 3: Pull the entire chronological history of this specific chat from MongoDB
+            print(f"⚠️ Failed to load UI attachment data: {str(e)}")
+
+    # ==========================================
+    # 2. SESSION MEMORY LOGIC (For the AI)
+    # ==========================================
+    accumulated_context = ""
+    try:
+        # Fetch ALL files ever linked to this chat room
+        # We use .to_list() to consume the async cursor
+        cursor = database.files.find({"chat_id": chat_id})
+        all_files = await cursor.to_list(length=10) # Safety limit of 10 docs
+        
+        if all_files:
+            accumulated_context = "--- REFERENCE DOCUMENTS ---\n"
+            for f in all_files:
+                if "extracted_text" in f:
+                    # Stitch every file's text together into a massive context block
+                    accumulated_context += f"Document: {f['filename']}\n{f['extracted_text']}\n\n"
+                    
+            print(f"📚 RAG Engine: Injected {len(all_files)} documents into memory.")
+    except Exception as e:
+        print(f"⚠️ Failed to load historical context: {str(e)}")
+
+    # ==========================================
+    # 3. BUILD THE FINAL PROMPT
+    # ==========================================
+    prompt_to_send = user_content
+    if accumulated_context:
+        # Wrap the multi-document text with the user's question
+        prompt_to_send = f"{accumulated_context}User Question: {user_content}"
+
+    # Step 4: Commit human message (attachment_data is only populated if they just uploaded a file)
+    await create_message(chat_id=chat_id, role="user", content=user_content, attachment=attachment_data)
+    await update_chat_timestamp(chat_id=chat_id)
+
+    # Step 5: Pull history (omitting the raw message we just saved)
     db_history = await get_messages_by_chat(chat_id=chat_id)
     
-    # Step 4: Convert our database documents into the structured format Hugging Face expects
-    # Format: [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
     formatted_messages = [
-        {"role": "system", "content": "You are Clarix, a precise and helpful AI assistant. Use provided document context accurately."}
+        {"role": "system", "content": "You are Clarix, a precise AI assistant. Answer the user's questions based on the provided reference documents."}
     ]
+
+    recent_history = db_history[-11:-1] if len(db_history) > 1 else []
     
-    for msg in db_history:
+    for msg in recent_history:
         formatted_messages.append({
             "role": msg["role"],
             "content": msg["content"]
         })
 
-    # Append our newly engineered RAG prompt as the latest turn
+    # Append our engineered RAG prompt (which now contains ALL files) as the final turn
     formatted_messages.append({"role": "user", "content": prompt_to_send})
         
-    # Step 5: Initialize a text accumulator to capture the tokens as they fly past
     full_ai_response = ""
     
     # Step 6: Hook into the core streaming generator
     async for token in hf_stream_completion(messages=formatted_messages):
-        full_ai_response += token  # Accumulate the string in server memory
-        yield token               # Instantly yield the token out to the HTTP response pipe (SSE)
+        full_ai_response += token
+        yield token
         
-    # Step 7: The stream has finished cleanly! Commit the full accumulated AI response to Atlas
+    # Step 7: Commit the AI response to Atlas
     if full_ai_response.strip():
         await create_message(chat_id=chat_id, role="assistant", content=full_ai_response)
-        # Bump the timestamp once more to reflect the final completion time
         await update_chat_timestamp(chat_id=chat_id)
+
+

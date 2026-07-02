@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from app.database import message_collection
 
-async def create_message(chat_id: str, role: str, content: str) -> dict:
+async def create_message(chat_id: str, role: str, content: str, attachment: dict = None) -> dict:
     """
     Saves a message linked to a specific chat session.
     """
@@ -12,6 +12,9 @@ async def create_message(chat_id: str, role: str, content: str) -> dict:
         "content": content,
         "timestamp": datetime.now(timezone.utc)
     }
+
+    if (attachment):
+        new_message["attachment"] = attachment
     
     result = await message_collection.insert_one(new_message)
     new_message["_id"] = str(result.inserted_id)

@@ -6,6 +6,7 @@ import { ChatBubble } from '../components/ChatBubble';
 import { ChatInput } from '../components/ChatInput';
 import { ClarixLogo } from '../components/ClarixLogo';
 import { Sidebar } from '../components/Sidebar';
+import { ThinkingStatus } from '../components/ThinkingStatus';
 
 // ACTIVATED LIVE SERVICES:
 import { 
@@ -45,6 +46,7 @@ export const ChatPage: React.FC = () => {
   const [inputPrompt, setInputPrompt] = useState<string>('');
   const [hasStartedChat, setHasStartedChat] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [systemStatus, setSystemStatus] = useState<string | null>(null);
 
   // --- AUTO-SCROLL PHYSICS ENGINE ---
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -83,11 +85,14 @@ export const ChatPage: React.FC = () => {
     const currentPrompt = inputPrompt;
     setInputPrompt('');
     setIsLoading(true);
+    
+    // 1. CLEAR ANY OLD STATUS
+    setSystemStatus(null); 
 
     try {
       let currentChatId = activeSessionId;
 
-      // 1. If brand new chat, generate the parent room first
+      // 2. GENERATE PARENT ROOM (If new chat)
       if (!currentChatId) {
         const fallbackTitle = attachedFile ? attachedFile.name : currentPrompt.slice(0, 30);
         const newSession = await startNewSession(fallbackTitle);
@@ -98,54 +103,57 @@ export const ChatPage: React.FC = () => {
       }
 
       let activeFileId: string | null = null;
-      const userMessageId = "user_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+      let attachmentData = null; // We hold this until we are ready to build the user bubble
 
-      // 2. THE ATOMIC TRANSACTION PHASE
+      // ==========================================
+      // PHASE 1: THE UPLOAD (REST API)
+      // ==========================================
       if (attachedFile) {
-        const tempUploadMsgId = "temp_upload_" + Date.now();
-        setMessages((prev) => [
-          ...prev,
-          { 
-            _id: tempUploadMsgId, 
-            role: 'user', 
-            content: `⏳ *Encrypting & shipping ${attachedFile.name} to vault...*` 
-          }
-        ]);
-
+        // Trigger the premium UI status!
+        setSystemStatus(`Encrypting & securing ${attachedFile.name}...`);
+        
         // Ship binary parcel to Supabase & MongoDB
         const vaultData = await uploadFileVault(currentChatId, attachedFile);
         activeFileId = vaultData.file_id;
-
-        // Swap temporary holding bubble for real user message
-        setMessages((prev) => 
-          prev.map((msg) => 
-            msg._id === tempUploadMsgId 
-              ? { 
-                  _id: userMessageId, 
-                  role: 'user', 
-                  content: currentPrompt || "Attached document for analysis.",
-                  attachment: {
-                    filename: attachedFile.name,
-                    file_id: activeFileId || undefined
-                  }
-                }
-              : msg
-          )
-        );
-      } else {
-        // Standard text message
-        setMessages((prev) => [
-          ...prev, 
-          { _id: userMessageId, role: 'user', content: currentPrompt }
-        ]);
+        
+        // Prep the data for the UI chip
+        attachmentData = {
+            filename: attachedFile.name,
+            file_id: activeFileId || undefined
+        };
       }
 
-      // 3. Drop empty AI receiver bubble with a mathematically collision-proof ID
+      // ==========================================
+      // PHASE 2: COMMIT USER MESSAGE
+      // ==========================================
+      // Now that upload is done (or if there was no file), drop the real user message
+      const userMessageId = "user_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+      setMessages((prev) => [
+        ...prev, 
+        { 
+            _id: userMessageId, 
+            role: 'user', 
+            content: currentPrompt || "Attached document for analysis.",
+            attachment: attachmentData || undefined 
+        }
+      ]);
+
+      // ==========================================
+      // PHASE 3: RAG PROCESSING & AI STREAMING (SSE)
+      // ==========================================
+      // Update status before hitting Hugging Face/Gemini
+      setSystemStatus(attachedFile ? "Analyzing document context..." : "Processing request...");
+
+      // Drop empty AI receiver bubble
       const aiReceiverId = "ai_receiver_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
       setMessages((prev) => [...prev, { _id: aiReceiverId, role: 'assistant', content: '' }]);
 
-      // 4. Fire the LLM Stream (guaranteed to lock onto aiReceiverId)
+      // Fire the LLM Stream
       await streamMessage(currentChatId, currentPrompt, (incomingToken) => {
+        
+        // HIDE THE STATUS THE EXACT MILLISECOND THE AI STARTS TYPING
+        setSystemStatus(null);
+        
         setMessages((prev) =>
           prev.map((msg) =>
             msg._id === aiReceiverId ? { ...msg, content: msg.content + incomingToken } : msg
@@ -155,10 +163,23 @@ export const ChatPage: React.FC = () => {
 
     } catch (error) {
       console.error("Pipeline severed:", error);
+      
+      // Hide the thinking status if the pipeline blows up
+      setSystemStatus(null);
+      
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : "Could not verify network or vault custody.";
+
       setMessages((prev) => [
         ...prev,
-        { _id: "error_" + Date.now(), role: 'assistant', content: '⚠️ **Transmission failed.** Could not verify network or vault custody.' }
+        { 
+          _id: "error_" + Date.now(), 
+          role: 'assistant', 
+          content: `⚠️ **Upload Failed:** ${errorMessage}` 
+        }
       ]);
+      
     } finally {
       setIsLoading(false);
     }
@@ -258,6 +279,9 @@ export const ChatPage: React.FC = () => {
                   {messages.map((msg) => (
                     <ChatBubble key={msg._id} message={msg} />
                   ))}
+
+                  {/* NEW: Premium Status UI */}
+                  <ThinkingStatus status={systemStatus} />
                   
                   {/* THE INVISIBLE CAMERA ANCHOR */}
                   <div ref={messagesEndRef} />
