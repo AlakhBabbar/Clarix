@@ -101,3 +101,19 @@ export async function uploadFileVault(chatId: string, file: File): Promise<Vault
   const json = await res.json();
   return json; 
 }
+
+
+export const deleteChatSession = async (chatId: string): Promise<void> => {
+  // Replace the URL path with your exact FastAPI backend endpoint route if different
+  const response = await fetch(`${API_BASE}/chats/${chatId}`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      // Include authorization tokens here if your backend requires them
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to delete chat session from server');
+  }
+};

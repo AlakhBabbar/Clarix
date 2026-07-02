@@ -33,12 +33,24 @@ async def list_all_chat_sessions():
 @router.delete("/{chat_id}")
 async def remove_chat_session(chat_id: str):
     """
-    Executes a clean cascade delete to erase the parent session document 
-    and all associated child message records matching that key.
+    Executes a total system purge:
+    1. Wipes physical files from Supabase (Cloud Vault).
+    2. Wipes file metadata from MongoDB Atlas.
+    3. Wipes message history from MongoDB Atlas.
+    4. Wipes the parent chat session.
     """
+    if not chat_id.strip():
+        raise HTTPException(status_code=400, detail="Target chat_id cannot be blank.")
+    
+    # We call the service layer which handles the full cascade cleanup
     was_deleted = await chat_service.delete_chat_session(chat_id)
+    
     if was_deleted:
-        return {"status": "success", "message": "Chat session and all related history purged successfully."}
+        return {
+            "status": "success", 
+            "message": "Full session and cloud vault assets purged successfully."
+        }
+        
     raise HTTPException(status_code=404, detail="Target chat session not found.")
 
 @router.get("/{chat_id}/messages")

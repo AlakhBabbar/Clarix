@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 from bson import ObjectId
-from app.database import chat_collection
+from app.database import chat_collection, database
 from app.services.message_service import delete_messages_by_chat_id
+from app.services.storage_service import delete_chat_vault_files
 
 async def create_chat_session(first_message_preview: str) -> dict:
     """
@@ -47,18 +48,35 @@ async def update_chat_timestamp(chat_id: str):
 
 async def delete_chat_session(chat_id: str) -> bool:
     """
-    THE CASCADE DELETE:
-    1. Finds the parent chat.
-    2. Wipes all child messages out of the message collection.
-    3. Wipes the parent chat out of the chat collection.
+    THE TOTAL CASCADE DELETE:
+    1. Finds all files in MongoDB and deletes them from the Supabase CDN.
+    2. Wipes the file records from MongoDB.
+    3. Wipes all child messages out of the message collection.
+    4. Wipes the parent chat out of the chat collection.
     """
     chat_parent = await chat_collection.find_one({"_id": ObjectId(chat_id)})
     if not chat_parent:
         return False
 
-    # Step A: Obliterate the children
+    # --- PHASE 1: THE FILE HEIST ---
+    # Query MongoDB for every file ever linked to this chat
+    cursor = database.files.find({"chat_id": chat_id})
+    files_to_delete = await cursor.to_list(length=None)
+
+    if files_to_delete:
+        # Extract just the filenames so Supabase knows what to target
+        filenames = [f["filename"] for f in files_to_delete]
+        
+        # Obliterate the physical files from the Cloud Vault
+        await delete_chat_vault_files(chat_id, filenames)
+        
+        # Obliterate the file metadata records from MongoDB Atlas
+        await database.files.delete_many({"chat_id": chat_id})
+
+    # --- PHASE 2: THE MESSAGE PURGE ---
     await delete_messages_by_chat_id(chat_id)
 
-    # Step B: Obliterate the parent
+    # --- PHASE 3: THE PARENT ASSASSINATION ---
     await chat_collection.delete_one({"_id": ObjectId(chat_id)})
+    
     return True

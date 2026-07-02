@@ -42,3 +42,24 @@ async def upload_document_to_cloud(chat_id: str, file: UploadFile) -> str:
     public_url = f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET_NAME}/{file_path}"
     
     return public_url
+
+
+async def delete_chat_vault_files(chat_id: str, filenames: list[str]) -> bool:
+    """
+    Takes an array of filenames, constructs their exact Supabase paths, 
+    and blasts them out of the cloud bucket in one shot.
+    """
+    if not supabase_client or not filenames:
+        return True # Nothing to delete, or client offline
+
+    # Reconstruct the virtual folder geometry we used during upload
+    file_paths = [f"{chat_id}/{name}" for name in filenames]
+    
+    try:
+        # Supabase accepts an array of paths to bulk-delete
+        res = supabase_client.storage.from_(BUCKET_NAME).remove(file_paths)
+        print(f"🗑️ Vault Cleanup: Wiped {len(file_paths)} files for chat {chat_id}")
+        return True
+    except Exception as e:
+        print(f"⚠️ Vault Cleanup Failed: {str(e)}")
+        return False

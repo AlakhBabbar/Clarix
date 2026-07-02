@@ -1,6 +1,6 @@
-// src/components/Sidebar.tsx
+// client/src/components/Sidebar.tsx
 import React from 'react';
-import { Plus, Trash2, PanelLeftClose } from 'lucide-react';
+import { Plus, PanelLeftClose } from 'lucide-react';
 import type { ChatSession } from '../types/chat';
 import { BrandHeader } from './BrandHeader';
 import { SessionItem } from './SessionItem';
@@ -12,6 +12,7 @@ interface SidebarProps {
   onSelectSession: (id: string) => void;
   onNewSession: () => void;
   onCloseMobile: () => void;
+  onDeleteSession: (id: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -21,10 +22,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectSession,
   onNewSession,
   onCloseMobile,
+  onDeleteSession,
 }) => {
   return (
-    <aside className={`transition-all duration-300 ease-in-out overflow-hidden bg-zinc-950 shrink-0 flex flex-col justify-between fixed inset-y-0 left-0 z-50 md:relative md:z-0 ${
-      isOpen ? 'w-full p-4 md:w-64 border-r border-zinc-800/80' : 'w-0 p-0 border-transparent'
+    <aside className={`transition-all duration-300 ease-in-out bg-zinc-950 shrink-0 flex flex-col justify-between fixed inset-y-0 left-0 z-50 md:relative md:z-0 ${
+      isOpen ? 'w-full p-4 md:w-64 border-r border-zinc-800/80' : 'w-0 p-0 border-transparent overflow-hidden'
     }`}>
       
       <div className="w-full md:w-56 flex flex-col justify-between h-full">
@@ -53,7 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
 
           {/* History List */}
-          <div className="flex flex-col gap-1 overflow-y-auto max-h-[60vh]">
+          <div className="flex flex-col gap-1 overflow-y-auto max-h-[60vh] pr-1">
             <p className="text-xs font-semibold text-zinc-500 px-2 mb-2 uppercase tracking-wider">History</p>
             {sessions.map((s) => (
               <SessionItem 
@@ -61,6 +63,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 session={s}
                 isActive={activeSessionId === s._id}
                 onClick={() => onSelectSession(s._id)}
+                onDeleteClick={() => {
+                  const confirmed = window.confirm(
+                    `Are you sure you want to delete "${s.title}"?\n\nThis will permanently erase all messages and associated document files.`
+                  );
+                  if (confirmed) {
+                    onDeleteSession(s._id);
+                  }
+                }}
               />
             ))}
           </div>
@@ -70,7 +80,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Footer info */}
         <div className="p-2 border-t border-zinc-900 text-xs text-zinc-600 flex justify-between items-center">
           <span>v1.0.0 MVP</span>
-          <Trash2 className="w-3.5 h-3.5 hover:text-zinc-400 cursor-pointer transition-colors" />
         </div>
       </div>
 

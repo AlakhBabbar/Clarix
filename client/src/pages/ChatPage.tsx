@@ -7,6 +7,7 @@ import { ChatInput } from '../components/ChatInput';
 import { ClarixLogo } from '../components/ClarixLogo';
 import { Sidebar } from '../components/Sidebar';
 import { ThinkingStatus } from '../components/ThinkingStatus';
+import { deleteChatSession } from '../services/api';
 
 // ACTIVATED LIVE SERVICES:
 import { 
@@ -176,7 +177,7 @@ export const ChatPage: React.FC = () => {
         { 
           _id: "error_" + Date.now(), 
           role: 'assistant', 
-          content: `⚠️ **Upload Failed:** ${errorMessage}` 
+          content: `**Upload Failed:** ${errorMessage}` 
         }
       ]);
       
@@ -212,6 +213,32 @@ export const ChatPage: React.FC = () => {
     closeSidebarIfMobile(); // <-- Auto-closes mobile sheet
   };
 
+  // Define the deletion handler
+  const handleDeleteSession = async (chatId: string) => {
+    try {
+      // 1. Call your backend service to delete files and records
+      await deleteChatSession(chatId);
+
+      // 2. Optimistically filter out the session from the UI list state
+      const updatedSessions = sessions.filter((session) => session._id !== chatId);
+      setSessions(updatedSessions);
+
+      // 3. Switch active context if the user deleted the session they were currently viewing
+      if (activeSessionId === chatId) {
+        if (updatedSessions.length > 0) {
+          // Fallback to the first remaining session
+          setActiveSessionId(updatedSessions[0]._id);
+        } else {
+          // Clear active display completely if no sessions left
+          setActiveSessionId(null);
+        }
+      }
+    } catch (error) {
+      console.error("Error executing session deletion:", error);
+      alert("Failed to delete session. Please try again.");
+    }
+  };
+
   return (
     <div className="flex h-screen w-full bg-black text-white font-sans antialiased overflow-hidden">
       
@@ -224,6 +251,7 @@ export const ChatPage: React.FC = () => {
         onSelectSession={handleSelectSession}
         onNewSession={handleNewSession}
         onCloseMobile={() => setIsSidebarOpen(false)}
+        onDeleteSession={handleDeleteSession}
       />
 
       {/* MAIN CHAT ARENA */}
