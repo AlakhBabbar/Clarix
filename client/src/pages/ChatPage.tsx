@@ -223,14 +223,18 @@ export const ChatPage: React.FC = () => {
       const updatedSessions = sessions.filter((session) => session._id !== chatId);
       setSessions(updatedSessions);
 
-      // 3. Switch active context if the user deleted the session they were currently viewing
+      // 3. THE UI BUG FIX: Properly reset the main arena
       if (activeSessionId === chatId) {
         if (updatedSessions.length > 0) {
-          // Fallback to the first remaining session
-          setActiveSessionId(updatedSessions[0]._id);
+          // If there are other sessions left, trigger the full selection flow 
+          // so it actually fetches the new messages from the database
+          handleSelectSession(updatedSessions[0]._id);
         } else {
-          // Clear active display completely if no sessions left
+          // If the sidebar is now completely empty, reset EVERYTHING to the welcome screen
+          setHasStartedChat(false);
+          setMessages([]);
           setActiveSessionId(null);
+          setSystemStatus(null); // Clear any lingering loading states
         }
       }
     } catch (error) {
