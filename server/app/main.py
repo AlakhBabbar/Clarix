@@ -7,6 +7,7 @@ from app.routes.auth import router as AuthRouter
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import init_db_indexes
 from contextlib import asynccontextmanager
+from app.routes.users import router as UserRouter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,6 +38,7 @@ server.include_router(AuthRouter, tags=["Authentication"], prefix="/api/auth")
 server.include_router(ChatRouter, tags=["Chat Sessions"], prefix="/api/chats")
 server.include_router(FileRouter, tags=["Vault"], prefix="/api/files")
 server.include_router(AiRouter, tags=["AI Core Engine"], prefix="/api/ai")
+server.include_router(UserRouter, tags=["Users"], prefix="/api/users")
 
 @server.get("/")
 async def root():
