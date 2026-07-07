@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, Field
 from app.services import chat_service
 from app.services.message_service import get_messages_by_chat
+from app.utils.dependencies import get_current_user
+
 
 router = APIRouter()
 
@@ -10,7 +12,10 @@ class ChatCreateInput(BaseModel):
     first_message: str = Field(..., example="Hello Clarix, let's start a chat session.")
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-async def start_new_chat(payload: ChatCreateInput):
+async def start_new_chat(
+    payload: ChatCreateInput,
+    current_user: dict = Depends(get_current_user) #-----locking the door
+):
     """
     Spins up a new parent chat session document using the first prompt string 
     as the visual sidebar title string.
@@ -18,20 +23,22 @@ async def start_new_chat(payload: ChatCreateInput):
     if not payload.first_message.strip():
         raise HTTPException(status_code=400, detail="Initial chat message cannot be empty.")
     
-    new_session = await chat_service.create_chat_session(payload.first_message)
+    user_id = str(current_user["_id"])
+    new_session = await chat_service.create_chat_session(payload.first_message, user_id)
     return {"status": "success", "data": new_session}
 
 @router.get("/")
-async def list_all_chat_sessions():
+async def list_all_chat_sessions(current_user: dict = Depends(get_current_user)):
     """
     Retrieves all available chat parent records sorted by most recently used 
     to populate your sidebar panel.
     """
-    sessions = await chat_service.get_all_chats()
+    user_id = str(current_user["_id"])
+    sessions = await chat_service.get_all_chats(user_id)
     return {"status": "success", "data": sessions}
 
 @router.delete("/{chat_id}")
-async def remove_chat_session(chat_id: str):
+async def remove_chat_session(chat_id: str, current_user: dict = Depends(get_current_user)):
     """
     Executes a total system purge:
     1. Wipes physical files from Supabase (Cloud Vault).
@@ -43,7 +50,8 @@ async def remove_chat_session(chat_id: str):
         raise HTTPException(status_code=400, detail="Target chat_id cannot be blank.")
     
     # We call the service layer which handles the full cascade cleanup
-    was_deleted = await chat_service.delete_chat_session(chat_id)
+    user_id = str(current_user["_id"])
+    was_deleted = await chat_service.delete_chat_session(chat_id, user_id)
     
     if was_deleted:
         return {
@@ -54,7 +62,7 @@ async def remove_chat_session(chat_id: str):
     raise HTTPException(status_code=404, detail="Target chat session not found.")
 
 @router.get("/{chat_id}/messages")
-async def fetch_chat_messages(chat_id: str):
+async def fetch_chat_messages(chat_id: str, current_user: dict = Depends(get_current_user)):
     """
     Retrieves the complete, chronological message history for a specific 
     parent chat session to populate the UI chat window.

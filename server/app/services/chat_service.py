@@ -4,7 +4,7 @@ from app.database import chat_collection, database
 from app.services.message_service import delete_messages_by_chat_id
 from app.services.storage_service import delete_chat_vault_files
 
-async def create_chat_session(first_message_preview: str) -> dict:
+async def create_chat_session(first_message_preview: str, user_id: str) -> dict:
     """
     Spins up a new chat parent document. Uses the user's first prompt 
     as the temporary sidebar title.
@@ -14,6 +14,7 @@ async def create_chat_session(first_message_preview: str) -> dict:
     clean_title = first_message_preview[:30].strip() + "..." if len(first_message_preview) > 30 else first_message_preview
 
     new_chat = {
+        "user_id": user_id,
         "title": clean_title,
         "created_at": now,
         "last_used": now
@@ -23,12 +24,13 @@ async def create_chat_session(first_message_preview: str) -> dict:
     new_chat["_id"] = str(result.inserted_id)
     return new_chat
 
-async def get_all_chats() -> list:
+async def get_all_chats(user_id: str) -> list:
     """
     Fetches all chat sessions for the UI sidebar, sorted by most recently used.
     """
     chats = []
-    cursor = chat_collection.find().sort("last_used", -1)
+    # <-- NEW: Filter the database query by user_id
+    cursor = chat_collection.find({"user_id": user_id}).sort("last_used", -1)
     
     async for doc in cursor:
         doc["_id"] = str(doc["_id"])
@@ -46,7 +48,7 @@ async def update_chat_timestamp(chat_id: str):
         {"$set": {"last_used": datetime.now(timezone.utc)}}
     )
 
-async def delete_chat_session(chat_id: str) -> bool:
+async def delete_chat_session(chat_id: str,user_id: str) -> bool:
     """
     THE TOTAL CASCADE DELETE:
     1. Finds all files in MongoDB and deletes them from the Supabase CDN.
@@ -54,7 +56,11 @@ async def delete_chat_session(chat_id: str) -> bool:
     3. Wipes all child messages out of the message collection.
     4. Wipes the parent chat out of the chat collection.
     """
-    chat_parent = await chat_collection.find_one({"_id": ObjectId(chat_id)})
+    # <-- NEW: Ensure the chat actually belongs to the user trying to delete it
+    chat_parent = await chat_collection.find_one({
+        "_id": ObjectId(chat_id),
+        "user_id": user_id
+    })
     if not chat_parent:
         return False
 

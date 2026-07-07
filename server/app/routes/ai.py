@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional
 from app.services.chat_orchestrator import orchestrate_chat_stream
+from app.utils.dependencies import get_current_user
 
 router = APIRouter()
 
@@ -13,7 +14,10 @@ class OrchestratedChatInput(BaseModel):
     file_id: Optional[str] = None
 
 @router.post("/chat")
-async def handle_orchestrated_stream(payload: OrchestratedChatInput):
+async def handle_orchestrated_stream(
+    payload: OrchestratedChatInput,
+    current_user: dict = Depends(get_current_user) # <-- LOCK THE DOOR
+):
     """
     Accepts a user prompt and a parent chat ID, triggers database logging 
     and history resolution, and stream-renders responses via Server-Sent Events (SSE).

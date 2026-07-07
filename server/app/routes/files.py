@@ -1,18 +1,20 @@
 # server/app/routes/files.py
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from datetime import datetime
 from bson import ObjectId
 from app.services.pdf_parser import extract_text_from_bytes
 from app.services.storage_service import upload_document_to_cloud
 from app.database import database 
 from app.utils.file_validators import validate_file_size, validate_text_length
+from app.utils.dependencies import get_current_user
 
 router = APIRouter()
 
 @router.post("/upload")
 async def handle_vault_upload(
     chat_id: str = Form(...),
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user) # <-- LOCK THE DOOR
 ):
     """
     Catch-point for React's FormData binary envelope.
