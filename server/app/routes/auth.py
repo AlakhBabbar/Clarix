@@ -30,7 +30,7 @@ async def login_user(payload: UserLogin, response: Response):
         key="clarix_token",
         value=auth_data["access_token"],
         httponly=True,
-        secure=False,   # Set to True when you deploy this to HTTPS in production
+        secure=True,   # Set to True when you deploy this to HTTPS in production
         samesite="lax", # Protects against CSRF attacks
         max_age=max_age_seconds,
         path="/"        # Cookie is valid across the entire application
@@ -51,7 +51,7 @@ async def logout_user(response: Response):
     response.delete_cookie(
         key="clarix_token",
         httponly=True,
-        secure=False,
+        secure=True,
         samesite="lax",
         path="/"
     )
@@ -73,7 +73,7 @@ async def verify_otp(payload: OTPVerify, response: Response):
         key="clarix_token",
         value=value, # Issue the token just like in login
         httponly=True,
-        secure=False,
+        secure=True,
         samesite="lax",
         max_age=max_age_seconds,
         path="/"
