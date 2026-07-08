@@ -1,27 +1,29 @@
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException, status, Request
 import jwt
 from bson import ObjectId
 from app.core.config import JWT_SECRET, JWT_ALGORITHM
 from app.database import database
 
-# Switch to HTTPBearer. This tells Swagger: "Just give the user a simple text box to paste their token."
-security_scheme = HTTPBearer()
-
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security_scheme)) -> dict:
+async def get_current_user(request: Request) -> dict:
     """
-    Intercepts the request, validates the JWT, and returns the database user object.
+    Intercepts the request, extracts the JWT from the HttpOnly cookie, 
+    validates it mathematically, and returns the database user object.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials. Please log in again.",
-        headers={"WWW-Authenticate": "Bearer"},
+        detail="Could not validate credentials. Please log in again."
     )
 
+    # 1. Look inside the browser's cookie jar for our specific token
+    token = request.cookies.get("clarix_token")
+    
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication cookie missing. Please log in."
+        )
+
     try:
-        # 1. The token is stored inside the 'credentials' object now
-        token = credentials.credentials
-        
         # 2. Decode the token mathematically
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         
@@ -38,7 +40,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except jwt.InvalidTokenError:
         raise credentials_exception
 
-    # 4. Look up the user in MongoDB
+    # 4. Look up the user in MongoDB to ensure the account still exists
     user_collection = database.get_collection("users")
     user = await user_collection.find_one({"_id": ObjectId(user_id)})
     

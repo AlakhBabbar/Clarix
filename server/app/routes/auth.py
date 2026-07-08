@@ -1,5 +1,6 @@
 # server/app/routes/auth.py
-from fastapi import APIRouter, status
+from fastapi import APIRouter, status, Response
+from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES
 from app.models.user import UserCreate, UserLogin, UserResponse, OTPVerify, OTPResend, ForgotPassword, ResetPassword
 from app.services.auth_service import AuthService
 
@@ -14,19 +15,70 @@ async def register_user(payload: UserCreate):
 
 
 @router.post("/login", status_code=status.HTTP_200_OK)
-async def login_user(payload: UserLogin):
+async def login_user(payload: UserLogin, response: Response):
     """
     Authenticates a user and returns a signed secure JWT. Rejects unverified accounts.
     """
-    return await AuthService.login_user(payload)
+    # 1. Get the raw token data from the AuthService
+    auth_data = await AuthService.login_user(payload)
+    
+    # 2. Convert your expiration minutes into seconds for the cookie Max-Age
+    max_age_seconds = ACCESS_TOKEN_EXPIRE_MINUTES * 60
+
+    # 3. Command the browser to store the HttpOnly cookie
+    response.set_cookie(
+        key="clarix_token",
+        value=auth_data["access_token"],
+        httponly=True,
+        secure=False,   # Set to True when you deploy this to HTTPS in production
+        samesite="lax", # Protects against CSRF attacks
+        max_age=max_age_seconds,
+        path="/"        # Cookie is valid across the entire application
+    )
+
+    # 4. Return user details, but intentionally OMIT the access_token
+    return {
+        "user_id": auth_data["user_id"],
+        "name": auth_data["name"],
+        "message": "Successfully logged in."
+    }
+
+@router.post("/logout", status_code=status.HTTP_200_OK)
+async def logout_user(response: Response):
+    """
+    Logs the user out by commanding the browser to instantly destroy the HttpOnly cookie.
+    """
+    response.delete_cookie(
+        key="clarix_token",
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        path="/"
+    )
+    return {"message": "Successfully logged out."}
 
 
 @router.post("/verify-otp", status_code=status.HTTP_200_OK)
-async def verify_otp(payload: OTPVerify):
+async def verify_otp(payload: OTPVerify, response: Response):
     """
     Confirms the 6-digit token and turns the account status to active/verified.
     """
-    return await AuthService.verify_user_otp(payload)
+    verdict = await AuthService.verify_user_otp(payload) 
+    value = verdict["data"]["access_token"]
+    print(value)
+    
+    # 2. THE NEW PART: Command the browser to store the HttpOnly cookie
+    max_age_seconds = ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    response.set_cookie(
+        key="clarix_token",
+        value=value, # Issue the token just like in login
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=max_age_seconds,
+        path="/"
+    )
+    return verdict
 
 
 @router.post("/resend-otp", status_code=status.HTTP_200_OK)

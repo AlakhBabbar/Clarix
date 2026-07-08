@@ -96,6 +96,7 @@ class AuthService:
         now = datetime.now(timezone.utc)
 
         otp_record = await cls.otp_collection.find_one({"email": payload.email})
+        user = await cls.user_collection.find_one({"email": payload.email})
         if not otp_record:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -124,8 +125,15 @@ class AuthService:
 
         # Clear used OTP record
         await cls.otp_collection.delete_one({"email": payload.email})
+        access_token = create_access_token(data={"sub": str(user["_id"])})
+        data = {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user_id": str(user["_id"]),
+            "name": user["name"]
+        }
 
-        return {"message": "Account successfully verified and activated."}
+        return {"message": "Account successfully verified and activated.", "data": data}
 
     @classmethod
     async def resend_user_otp(cls, payload: OTPResend):
