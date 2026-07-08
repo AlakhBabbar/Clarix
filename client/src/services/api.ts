@@ -34,11 +34,11 @@ export async function registerUser(payload: { name: string; email: string; passw
 
 
 export async function verifyUserOtp(payload: { email: string; otp: string }) {
-  const res = await fetch(`${API_BASE}/auth/verify-otp`, {
+  const res = await fetch(`${API_BASE}/auth/verify-otp`, withCookies({
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
-  });
+  }));
   
   if (!res.ok) {
     const errorData = await res.json();
@@ -84,6 +84,34 @@ export async function loginUser(payload: any) {
     throw error;
   }
   
+  return res.json();
+}
+
+export async function requestPasswordReset(payload: { email: string }) {
+  const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.detail || 'Failed to send reset code');
+  }
+  return res.json();
+}
+
+export async function resetPassword(payload: { email: string; otp: string; new_password: string }) {
+  const res = await fetch(`${API_BASE}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.detail || 'Failed to reset password');
+  }
   return res.json();
 }
 

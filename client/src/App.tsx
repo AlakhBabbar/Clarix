@@ -4,6 +4,7 @@ import { ChatPage } from './pages/ChatPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AuthPage } from './pages/AuthPage';
 import { VerifyOTPPage } from './pages/VerifyOTPPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
         <Route path="/signin" element={<AuthPage mode="login" />} />
         <Route path="/signup" element={<AuthPage mode="register" />} />
         <Route path="/verify" element={<VerifyOTPPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         
         {/* Redirect the old /login to /signin just in case */}
         <Route path="/login" element={<Navigate to="/signin" replace />} />

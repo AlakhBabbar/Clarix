@@ -107,6 +107,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({ mode }) => {
           className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-3 text-white"
         />
 
+        {/* NEW: Forgot Password Link */}
+        {isLogin && (
+          <div className="flex justify-end w-full -mt-2">
+            <Link to="/forgot-password" className="text-xs text-zinc-400 hover:text-white transition-colors">
+              Forgot password?
+            </Link>
+          </div>
+        )}
+
         {error && <p className="text-red-500 text-sm text-center">{error}</p>}
 
         <button 

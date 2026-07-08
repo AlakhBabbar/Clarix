@@ -1,9 +1,11 @@
 // client/src/components/Sidebar.tsx
 import React from 'react';
-import { Plus, PanelLeftClose } from 'lucide-react';
+import { Plus, PanelLeftClose, LogOut } from 'lucide-react';
 import type { ChatSession } from '../types/chat';
 import { BrandHeader } from './BrandHeader';
 import { SessionItem } from './SessionItem';
+import { logoutUser } from '../services/api';
+import { useNavigate } from 'react-router-dom';
 
 interface SidebarProps {
   sessions: ChatSession[];
@@ -24,6 +26,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
   onDeleteSession,
 }) => {
+
+  const navigate = useNavigate();
+  const handleLogout = async () => {
+    try {
+      // Tell the backend to destroy the HttpOnly cookie
+      await logoutUser();
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      // Always redirect to sign-in, even if the network fails
+      navigate('/signin');
+    }
+  };
   return (
     <aside className={`transition-all duration-300 ease-in-out bg-zinc-950 shrink-0 flex flex-col justify-between fixed inset-y-0 left-0 z-50 md:relative md:z-0 ${
       isOpen ? 'w-full p-4 md:w-64 border-r border-zinc-800/80' : 'w-0 p-0 border-transparent overflow-hidden'
@@ -78,8 +93,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Footer info */}
-        <div className="p-2 border-t border-zinc-900 text-xs text-zinc-600 flex justify-between items-center">
-          <span>v1.0.0 MVP</span>
+        <div className="p-2 border-t border-zinc-900 flex justify-between items-center">
+          <span className="text-xs text-zinc-600 font-medium">v1.0.0 MVP</span>
+          
+          <button 
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-md transition-all cursor-pointer"
+            title="Log out of Clarix"
+          >
+            <LogOut className="w-3.5 h-3.5 shrink-0" />
+            <span>Logout</span>
+          </button>
         </div>
       </div>
 
