@@ -1,7 +1,7 @@
 // src/services/api.ts
 import type { ChatSession, Message } from '../types/chat';
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = import.meta.env.VITE_API_BASE;
 
 // ==========================================
 // AUTHENTICATION & COOKIE UTILS
