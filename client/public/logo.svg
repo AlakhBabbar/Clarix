@@ -1,0 +1,51 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- incoming information: now all white with specific opacity for faded effect -->
+  <path
+    d="M52 80 L104 116"
+    stroke="#ffffff"
+    stroke-width="8"
+    stroke-linecap="round"
+    opacity="0.25"
+  />
+
+  <path
+    d="M52 128 L104 128"
+    stroke="#ffffff"
+    stroke-width="8"
+    stroke-linecap="round"
+    opacity="0.55"
+  />
+
+  <path
+    d="M52 176 L104 140"
+    stroke="#ffffff"
+    stroke-width="8"
+    stroke-linecap="round"
+    opacity="0.25"
+  />
+
+  <!-- clarity prism: remains white -->
+  <path
+    d="M128 78 L178 128 L128 178 L78 128 Z"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="10"
+    stroke-linejoin="round"
+  />
+
+  <!-- internal focus: remains white -->
+  <circle
+    cx="128"
+    cy="128"
+    r="12"
+    fill="#ffffff"
+  />
+
+  <!-- verified output: remains white -->
+  <path
+    d="M152 128 L208 128"
+    stroke="#ffffff"
+    stroke-width="10"
+    stroke-linecap="round"
+  />
+</svg>
